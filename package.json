@@ -1,0 +1,33 @@
+{
+  "name": "architecture-studio",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "node scripts/generate-schema.mjs && vite build && node scripts/precache.js",
+    "preview": "vite preview --host 127.0.0.1",
+    "test": "vitest run",
+    "test:browser": "node scripts/catalog-smoke.mjs && node scripts/dialogs-smoke.mjs && node scripts/smoke.mjs && node scripts/editor-smoke.mjs && node scripts/sample-smoke.mjs && node scripts/roundtrip-smoke.mjs && node scripts/image-smoke.mjs && node scripts/simulation-smoke.mjs && node scripts/bpmn-rtl-smoke.mjs && node scripts/fullscreen-smoke.mjs",
+    "test:offline": "node scripts/offline-smoke.mjs",
+    "benchmark": "node scripts/benchmark.mjs",
+    "sample": "node scripts/create-sample.mjs"
+  },
+  "dependencies": {
+    "ajv": "^8.18.0",
+    "bpmn-js": "18.31.0",
+    "dmn-js": "17.4.0",
+    "dompurify": "^3.4.17",
+    "jszip": "3.10.1",
+    "mermaid": "12.2.0",
+    "vazirmatn": "33.0.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "4.3.3",
+    "daisyui": "5.5.5",
+    "playwright-core": "^1.56.1",
+    "tailwindcss": "4.3.3",
+    "vite": "8.3.1",
+    "vitest": "5.0.2"
+  }
+}
