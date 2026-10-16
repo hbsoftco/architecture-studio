@@ -1,16 +1,56 @@
 const DB = 'architecture-studio';
-const VERSION = 1;
+const VERSION = 2;
 
 export function openDatabase() {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB, VERSION);
     request.onupgradeneeded = () => {
       const db = request.result;
-      db.createObjectStore('projects', { keyPath: 'id' });
-      db.createObjectStore('snapshots', { keyPath: 'id' });
+      if (!db.objectStoreNames.contains('projects')) db.createObjectStore('projects', { keyPath: 'id' });
+      if (!db.objectStoreNames.contains('snapshots')) db.createObjectStore('snapshots', { keyPath: 'id' });
+      if (!db.objectStoreNames.contains('templates')) db.createObjectStore('templates', { keyPath: 'id' });
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
+  });
+}
+
+export function allTemplates(db) {
+  return new Promise((resolve, reject) => {
+    const request = db.transaction('templates').objectStore('templates').getAll();
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+export function saveTemplate(db, template) {
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction('templates', 'readwrite');
+    transaction.objectStore('templates').put(template);
+    transaction.oncomplete = resolve;
+    transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(transaction.error);
+  });
+}
+
+export function saveTemplates(db, templates) {
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction('templates', 'readwrite');
+    const store = transaction.objectStore('templates');
+    for (const template of templates) store.put(template);
+    transaction.oncomplete = resolve;
+    transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(transaction.error);
+  });
+}
+
+export function removeTemplate(db, id) {
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction('templates', 'readwrite');
+    transaction.objectStore('templates').delete(id);
+    transaction.oncomplete = resolve;
+    transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(transaction.error);
   });
 }
 

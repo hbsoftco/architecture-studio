@@ -28,6 +28,12 @@ All former JavaScript `prompt()`/`confirm()` interactions in `src/main.js` now u
 
 The creation operation persists the new document before opening it. A storage failure removes the tentative document from the in-memory project, leaves the modal open, and shows the error. The submit button stays disabled during that operation.
 
+## Template gallery
+
+The New Diagram dialog also has a **Templates** tab. It offers 19 source-backed built-ins across BPMN, DMN, Mermaid, C4, ERD, DFD, infrastructure, and general graph types. Search, source/type/category filters, sorting, source-derived previews, and related guide slides use the same dialog shell. Creation copies the authoritative source to a new document through the existing project save/open path. The selected folder and entered name apply only to that document. Switching tabs preserves each tab's selection and name.
+
+**Save as Template** in the open document toolbar or context menu captures the current editor source, including unsaved edits. Custom templates live in the separate IndexedDB `templates` store. The gallery supports metadata editing, duplication, deletion, and `.astpl` ZIP import/export, including explicit copy/skip/replace choices on ID conflicts. Project ZIP backups do not contain global custom templates. See [Template gallery](TEMPLATE_GALLERY.md) for the record and package formats, migration, and verified inventory.
+
 ## Visual checks
 
 Chrome captures: [Persian catalog](qa/catalog-overview-fa.png), [English guide](qa/catalog-guide-en.png), and [mobile guide](qa/catalog-mobile.png).

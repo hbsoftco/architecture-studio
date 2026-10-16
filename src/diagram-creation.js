@@ -1,15 +1,17 @@
 import { TYPES } from './model.js';
 import { catalog, categoryNames, searchCatalog, previewSvg, guideSlides } from './catalog.js';
+import { attachTemplateGallery } from './template-gallery.js';
 
 const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
 
-export function openDiagramCatalog(dialogs, language, onCreate) {
+export function openDiagramCatalog(dialogs, language, onCreate, templateOptions = {}) {
   const fa = language === 'fa';
   const word = (persian, english) => fa ? persian : english;
   let selected = catalog.find(item => item.id === 'bpmn') || catalog[0];
   let guideOpen = false;
   let slide = 0;
   let autoName = selected.title[language];
+  let templateGallery;
 
   return dialogs.open({
     className: 'catalog-dialog',
@@ -122,12 +124,16 @@ export function openDiagramCatalog(dialogs, language, onCreate) {
         renderGuide(); event.preventDefault();
       });
       renderList(); renderPreview();
+      if (templateOptions.getCustomTemplates) templateGallery = attachTemplateGallery({ content, dialog, submit, language,
+        folders: templateOptions.folders || [], getCustomTemplates: templateOptions.getCustomTemplates,
+        onCreate: templateOptions.onCreateTemplate, onManage: templateOptions.onManage });
     },
     async onConfirm({ content }) {
+      if (templateGallery?.mode === 'templates') { await templateGallery.create(); return true; }
       const name = content.querySelector('#catalog-name').value.trim();
       if (!name) throw new Error(word('نام نمودار را وارد کنید.', 'Enter a diagram name.'));
       await onCreate(selected, name);
       return true;
     }
-  });
+  }).finally(() => templateGallery?.destroy());
 }

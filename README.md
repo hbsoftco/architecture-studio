@@ -16,9 +16,9 @@ Open the local address printed by Vite. The built release includes a service wor
 
 ## Use
 
-Create a project, choose **New diagram**, then enter a type ID: `mermaid`, `bpmn`, `dmn`, `c4`, `erd`, `infrastructure`, `dfd`, or `general`. Documents autosave to IndexedDB. The project menu (`⋯`) offers rename, duplicate, snapshot restore, and delete. Right-click a document for rename, duplicate, move, or delete. Import individual `.mmd`, `.bpmn`, `.dmn`, or graph `.json` files, or a project `.zip`. Export the active document with **Export document**, or the whole project with **Export project**.
+Create a project, choose **New diagram**, then use **Blank Diagram** to choose a type or **Templates** to browse the 19 editable examples. Search and filter templates, inspect their previews and guides, name the new diagram, and choose its folder. Documents autosave to IndexedDB. **Save as Template** on an open diagram stores your current work in **My templates**; the gallery can edit, duplicate, delete, import, and export those templates as `.astpl` packages. The project menu (`⋯`) offers rename, duplicate, snapshot restore, and delete. Right-click a document for rename, duplicate, move, or delete. Import individual `.mmd`, `.bpmn`, `.dmn`, or graph `.json` files, or a project `.zip`. Export the active document with **Export document**, or the whole project with **Export project**.
 
-Project ZIP files are the portable backup format. Browser storage is local to the browser profile and origin; export ZIP backups regularly.
+Project ZIP files are the portable backup format for project documents. Custom templates are stored separately, so export them from **My templates** as `.astpl` packages too. Browser storage is local to the browser profile and origin.
 
 Direct dependency and font licenses are summarized in [dependencies](docs/DEPENDENCIES.md). The built release includes their license texts under `dist/licenses/`.
 

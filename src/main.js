@@ -1,15 +1,20 @@
 import './style.css';
 import { TYPES, MERMAID_EXAMPLES, createProject, createDocument, uid, validateProject, validateGraph } from './model.js';
-import { openDatabase, allProjects, saveProject, deleteProject, history } from './storage.js';
+import { openDatabase, allProjects, saveProject, deleteProject, history, allTemplates, saveTemplate, saveTemplates, removeTemplate } from './storage.js';
 import { projectZip, importProjectZip, download, exportPng } from './export.js';
 import { GraphEditor } from './graph-editor.js';
 import { createDialogs, createNotifications } from './dialogs.js';
 import { openDiagramCatalog } from './diagram-creation.js';
 import { createCatalogDocument } from './catalog.js';
+import { builtInTemplates } from './template-library.js';
+import { TEMPLATE_CATEGORIES, instantiateTemplate, customTemplateFromDocument, validateTemplateMetadata } from './template-core.js';
+import { templateThumbnail } from './template-preview.js';
+import { exportTemplates } from './template-package.js';
+import { validateXMLDocument } from './xml-validation.js';
 import fontUrl from 'vazirmatn/fonts/webfonts/Vazirmatn[wght].woff2?url';
 
 const app = document.querySelector('#app');
-const state = { db: null, projects: [], project: null, docId: null, tabs: [], editor: null, dirty: false, saveTimer: null, renderTimer: null, lang: localStorage.getItem('as-lang') || 'fa', theme: localStorage.getItem('as-theme') || 'light' };
+const state = { db: null, projects: [], templates: [], project: null, docId: null, tabs: [], editor: null, dirty: false, saveTimer: null, renderTimer: null, lang: localStorage.getItem('as-lang') || 'fa', theme: localStorage.getItem('as-theme') || 'light' };
 let fullscreenFallback = false;
 let fullscreenFocus = null;
 let fullscreenPanelOpen = false;
@@ -215,23 +220,92 @@ async function openDoc(id) {
   remember(); renderTabs(); renderExplorer(); renderEditor();
 }
 async function newDocument() {
-  await openDiagramCatalog(dialogs, state.lang, async (entry, name) => {
-    await preserveActive();
-    const project = state.project;
-    const item = createCatalogDocument(entry, name);
-    project.documents.push(item);
-    project.updatedAt = new Date().toISOString();
-    try { await saveProject(state.db, project); }
-    catch (error) { project.documents = project.documents.filter(document => document.id !== item.id); throw error; }
-    state.dirty = false;
-    await openDoc(item.id);
-    renderExplorer(); updateStatus();
+  await openDiagramCatalog(dialogs, state.lang, async (entry, name) => addNewDocument(createCatalogDocument(entry, name)), {
+    folders: state.project.folders,
+    getCustomTemplates: () => state.templates,
+    onCreateTemplate: async (template, name, folderId) => {
+      if (folderId && !state.project.folders.some(folder => folder.id === folderId)) throw new Error(ui('پوشهٔ مقصد پیدا نشد.', 'Destination folder not found.'));
+      await addNewDocument(instantiateTemplate(template, name, folderId));
+      try {
+        const usage = JSON.parse(localStorage.getItem('as-template-use') || '{}');
+        usage[template.id] = new Date().toISOString();
+        localStorage.setItem('as-template-use', JSON.stringify(usage));
+      } catch { /* Local preferences are optional; document creation already succeeded. */ }
+      if (template.source === 'custom') {
+        const updated = { ...template, lastUsedAt: new Date().toISOString(), usageCount: (template.usageCount || 0) + 1 };
+        try { await saveTemplate(state.db, updated); state.templates = state.templates.map(item => item.id === template.id ? updated : item); }
+        catch (error) { notify(error.message, true); }
+      }
+    },
+    onManage: manageTemplate
   });
+}
+async function addNewDocument(item) {
+  await preserveActive();
+  const project = state.project;
+  const oldUpdatedAt = project.updatedAt;
+  project.documents.push(item);
+  project.updatedAt = new Date().toISOString();
+  try { await saveProject(state.db, project); }
+  catch (error) { project.documents = project.documents.filter(document => document.id !== item.id); project.updatedAt = oldUpdatedAt; throw error; }
+  state.dirty = false;
+  await openDoc(item.id);
+  renderExplorer(); updateStatus();
+}
+async function saveAsTemplate(item = doc()) {
+  if (!item) return;
+  await dialogs.input({ title:ui('ذخیره به‌عنوان قالب', 'Save as Template'), description:ui('این قالب جدا از نمودار فعلی ذخیره می‌شود.', 'This template is stored separately from the current diagram.'), fields:[
+    { name:'name', label:ui('نام قالب','Template name'), value:item.name, required:true },
+    { name:'description', label:ui('توضیح کوتاه','Short description'), required:true },
+    { name:'category', label:ui('دسته','Category'), type:'select', value:item.type === 'bpmn' ? 'process' : item.type === 'dmn' ? 'decision' : item.type === 'erd' || item.type === 'dfd' ? 'data' : item.type === 'infrastructure' ? 'infrastructure' : item.type === 'c4' ? 'architecture' : 'general', options:Object.entries(TEMPLATE_CATEGORIES).map(([value,title]) => ({ value, label:title[state.lang] })) },
+    { name:'tags', label:ui('برچسب‌ها با ویرگول','Comma-separated tags'), value:item.type }
+  ], confirmLabel:ui('ذخیرهٔ قالب','Save template'), async onConfirm(values) {
+    const content = item.id === state.docId ? await contentNow() : item.content;
+    const template = customTemplateFromDocument(item, content, values);
+    template.thumbnail = await templateThumbnail(template);
+    await saveTemplate(state.db, template);
+    state.templates.push(template);
+    notify(ui('قالب ذخیره شد.', 'Template saved.'));
+  } });
+}
+async function manageTemplate(action, payload) {
+  if (action === 'update') {
+    validateTemplateMetadata(payload);
+    if (!state.templates.some(item => item.id === payload.id)) throw new Error('Template not found');
+    await saveTemplate(state.db, payload);
+    state.templates = state.templates.map(item => item.id === payload.id ? payload : item);
+  } else if (action === 'duplicate') {
+    const now = new Date().toISOString();
+    const copy = { ...structuredClone(payload), id:`user-${uid()}`, title:{ fa:`${payload.title.fa} ${ui('رونوشت','copy')}`, en:`${payload.title.en} copy` }, createdAt:now, updatedAt:now, lastUsedAt:null, usageCount:0 };
+    await saveTemplate(state.db, copy); state.templates.push(copy);
+  } else if (action === 'delete') {
+    if (!state.templates.some(item => item.id === payload.id)) throw new Error('Built-in templates cannot be deleted');
+    await removeTemplate(state.db, payload.id); state.templates = state.templates.filter(item => item.id !== payload.id);
+  } else if (action === 'export') {
+    download(await exportTemplates(payload), `architecture-templates-${new Date().toISOString().slice(0,10)}.astpl`);
+  } else if (action === 'import') {
+    const known = new Set([...builtInTemplates, ...state.templates].map(item => item.id));
+    const records = [];
+    for (const item of payload.templates) {
+      let next = { ...item };
+      if (known.has(next.id)) {
+        if (payload.policy === 'skip') continue;
+        if (payload.policy === 'copy' || builtInTemplates.some(builtIn => builtIn.id === next.id)) next = { ...next, id:`user-${uid()}`, createdAt:new Date().toISOString(), updatedAt:new Date().toISOString() };
+      }
+      known.add(next.id); records.push(next);
+    }
+    if (!records.length) return;
+    await saveTemplates(state.db, records);
+    const incoming = new Set(records.map(item => item.id));
+    state.templates = [...state.templates.filter(item => !incoming.has(item.id)), ...records];
+  }
+  notify(ui('قالب‌ها به‌روزرسانی شدند.', 'Templates updated.'));
 }
 async function documentMenu(id) {
   const item = state.project.documents.find(d => d.id === id);
   if (!item) return;
-  const action = await dialogs.choose({ title:item.name, items:[ ['rename',t('rename')], ['duplicate',t('duplicate')], ['move',ui('انتقال به پوشه','Move to folder')], ['delete',t('remove')] ].map(([value,label]) => ({ value,label })) });
+  const action = await dialogs.choose({ title:item.name, items:[ ['rename',t('rename')], ['duplicate',t('duplicate')], ['template',ui('ذخیره به‌عنوان قالب','Save as Template')], ['move',ui('انتقال به پوشه','Move to folder')], ['delete',t('remove')] ].map(([value,label]) => ({ value,label })) });
+  if (action === 'template') { await saveAsTemplate(item); return; }
   if (action === 'rename') { const result = await dialogs.input({ title:ui('تغییر نام نمودار','Rename diagram'), fields:[{ name:'name', label:ui('نام نمودار','Diagram name'), value:item.name, required:true }], confirmLabel:t('rename') }); if (result) item.name = result.name; else return; }
   else if (action === 'duplicate') state.project.documents.push({ ...structuredClone(item), id: uid(), name: `${item.name} ${ui('رونوشت','copy')}` });
   else if (action === 'delete') { if (!await dialogs.confirm({ title:ui('حذف نمودار','Delete diagram'), description:ui(`«${item.name}» و پیوندهای آن حذف می‌شود.`, `Delete “${item.name}” and its links?`), destructive:true, confirmLabel:t('remove') })) return; state.project.documents = state.project.documents.filter(d => d.id !== id); state.project.links = state.project.links.filter(link => link.fromDocId !== id && link.toDocId !== id); await closeDoc(id); }
@@ -282,7 +356,7 @@ function renderEditor() {
   const area = document.querySelector('#editor-area'); const toolbar = document.querySelector('#toolbar'); const props = document.querySelector('#properties');
   const item = doc(); updateStatus(); issue(null); renderLinks();
   if (!item) { toolbar.innerHTML = ''; props.innerHTML = ''; area.innerHTML = `<div class="welcome"><div class="welcome-glyph">◇</div><h1>${state.lang === 'fa' ? 'فضای طراحی شما' : 'Your design workspace'}</h1><p>${t('empty')}</p><button id="welcome-new" class="btn btn-primary">＋ ${t('newDoc')}</button><div class="welcome-grid"><span>01 · BPMN</span><span>02 · DMN</span><span>03 · Mermaid</span><span>04 · C4 / ERD</span></div></div>`; document.querySelector('#welcome-new').onclick = newDocument; return; }
-  toolbar.innerHTML = `<span class="doc-kind">${esc(TYPES[item.type][state.lang])}</span><span class="toolbar-separator"></span><button id="undo" class="btn btn-xs btn-ghost" title="Undo">↶</button><button id="redo" class="btn btn-xs btn-ghost" title="Redo">↷</button><span class="toolbar-separator"></span>${!['mermaid','bpmn','dmn'].includes(item.type) ? `<button id="add-node" class="btn btn-xs btn-ghost">＋ ${t('addNode')}</button><button id="connect" class="btn btn-xs btn-ghost">↗ ${t('connect')}</button><button id="delete-node" class="btn btn-xs btn-ghost">× ${t('remove')}</button><button id="auto-layout" class="btn btn-xs btn-ghost">▦ ${state.lang === 'fa' ? 'چیدمان' : 'Arrange'}</button>` : ''}${['bpmn','dmn'].includes(item.type) ? `<button id="validate" class="btn btn-xs btn-ghost">✓ ${state.lang === 'fa' ? 'اعتبارسنجی' : 'Validate'}</button>` : ''}${item.type === 'bpmn' ? `<button id="find-element" class="btn btn-xs btn-ghost">⌕ ${state.lang === 'fa' ? 'یافتن عنصر' : 'Find element'}</button>` : ''}<button id="zoom-in" class="btn btn-xs btn-ghost" title="Zoom in">＋</button><button id="zoom-out" class="btn btn-xs btn-ghost" title="Zoom out">－</button><button id="fit" class="btn btn-xs btn-ghost" title="${t('fit')}">⌗</button><button id="pan" class="btn btn-xs btn-ghost" title="${ui('جابجایی بوم','Pan canvas')}" aria-label="${ui('جابجایی بوم','Pan canvas')}" aria-pressed="false">✥</button><button id="fullscreen" class="btn btn-xs btn-ghost btn-square fullscreen-toggle" type="button"></button><button id="fullscreen-properties" class="btn btn-xs btn-ghost fullscreen-properties" type="button" hidden title="${t('inspector')}" aria-label="${t('inspector')}">☷ ${t('inspector')}</button><span class="toolbar-spacer"></span><button id="snapshot" class="btn btn-xs btn-ghost" title="Snapshot">◷</button><button id="export-document" class="btn btn-xs btn-ghost">⇧ ${t('exportDoc')}</button><button id="export-svg" class="btn btn-xs btn-ghost">SVG</button><button id="export-png" class="btn btn-xs btn-ghost">PNG</button>`;
+  toolbar.innerHTML = `<span class="doc-kind">${esc(TYPES[item.type][state.lang])}</span><span class="toolbar-separator"></span><button id="undo" class="btn btn-xs btn-ghost" title="Undo">↶</button><button id="redo" class="btn btn-xs btn-ghost" title="Redo">↷</button><span class="toolbar-separator"></span>${!['mermaid','bpmn','dmn'].includes(item.type) ? `<button id="add-node" class="btn btn-xs btn-ghost">＋ ${t('addNode')}</button><button id="connect" class="btn btn-xs btn-ghost">↗ ${t('connect')}</button><button id="delete-node" class="btn btn-xs btn-ghost">× ${t('remove')}</button><button id="auto-layout" class="btn btn-xs btn-ghost">▦ ${state.lang === 'fa' ? 'چیدمان' : 'Arrange'}</button>` : ''}${['bpmn','dmn'].includes(item.type) ? `<button id="validate" class="btn btn-xs btn-ghost">✓ ${state.lang === 'fa' ? 'اعتبارسنجی' : 'Validate'}</button>` : ''}${item.type === 'bpmn' ? `<button id="find-element" class="btn btn-xs btn-ghost">⌕ ${state.lang === 'fa' ? 'یافتن عنصر' : 'Find element'}</button>` : ''}<button id="zoom-in" class="btn btn-xs btn-ghost" title="Zoom in">＋</button><button id="zoom-out" class="btn btn-xs btn-ghost" title="Zoom out">－</button><button id="fit" class="btn btn-xs btn-ghost" title="${t('fit')}">⌗</button><button id="pan" class="btn btn-xs btn-ghost" title="${ui('جابجایی بوم','Pan canvas')}" aria-label="${ui('جابجایی بوم','Pan canvas')}" aria-pressed="false">✥</button><button id="fullscreen" class="btn btn-xs btn-ghost btn-square fullscreen-toggle" type="button"></button><button id="fullscreen-properties" class="btn btn-xs btn-ghost fullscreen-properties" type="button" hidden title="${t('inspector')}" aria-label="${t('inspector')}">☷ ${t('inspector')}</button><span class="toolbar-spacer"></span><button id="snapshot" class="btn btn-xs btn-ghost" title="Snapshot">◷</button><button id="save-template" class="btn btn-xs btn-ghost" title="${ui('ذخیره به‌عنوان قالب','Save as Template')}">▧ ${ui('قالب','Template')}</button><button id="export-document" class="btn btn-xs btn-ghost">⇧ ${t('exportDoc')}</button><button id="export-svg" class="btn btn-xs btn-ghost">SVG</button><button id="export-png" class="btn btn-xs btn-ghost">PNG</button>`;
   toolbar.querySelector('#undo').onclick = () => state.editor?.undo?.(); toolbar.querySelector('#redo').onclick = () => state.editor?.redo?.();
   toolbar.querySelector('#zoom-in').onclick = () => state.editor?.zoom?.(1.2);
   toolbar.querySelector('#zoom-out').onclick = () => state.editor?.zoom?.(1/1.2);
@@ -291,9 +365,10 @@ function renderEditor() {
   toolbar.querySelector('#fullscreen').onclick = toggleFullscreen;
   toolbar.querySelector('#fullscreen-properties').onclick = () => { fullscreenPanelOpen = !fullscreenPanelOpen; syncFullscreen(); if (fullscreenPanelOpen) document.querySelector('.inspector button, .inspector input, .inspector select, .inspector textarea')?.focus(); };
   syncFullscreen();
-  toolbar.querySelector('#validate')?.addEventListener('click', async () => { const { validateXMLDocument } = await import('./xml-validation.js'); const findings = validateXMLDocument(await contentNow(), item.type); issue(findings.length ? findings.join('\n') : null); notify(findings.length ? `${findings.length} issue(s)` : (state.lang === 'fa' ? 'ساختار پایه معتبر است' : 'Basic structure valid')); });
+  toolbar.querySelector('#validate')?.addEventListener('click', async () => { const findings = validateXMLDocument(await contentNow(), item.type); issue(findings.length ? findings.join('\n') : null); notify(findings.length ? `${findings.length} issue(s)` : (state.lang === 'fa' ? 'ساختار پایه معتبر است' : 'Basic structure valid')); });
   toolbar.querySelector('#find-element')?.addEventListener('click', async () => { const result = await dialogs.input({ title:ui('یافتن عنصر','Find element'), fields:[{ name:'query', label:ui('نام یا شناسهٔ عنصر','Name or element ID'), required:true }], confirmLabel:ui('جستجو','Find') }); if (!result) return; const found = state.editor?.find?.(result.query); notify(found ? `${found.name} (${found.id})` : ui('عنصری پیدا نشد','Element not found'), !found); });
   toolbar.querySelector('#snapshot').onclick = async () => { await flush(true); notify(state.lang === 'fa' ? 'نسخهٔ محلی ثبت شد' : 'Local snapshot saved'); };
+  toolbar.querySelector('#save-template').onclick = () => saveAsTemplate();
   toolbar.querySelector('#export-document').onclick = async () => { const content = await contentNow(); download(new Blob([content], { type: 'text/plain;charset=utf-8' }), `${safeName(item.name)}.${TYPES[item.type].extension}`); };
   toolbar.querySelector('#export-svg').onclick = () => saveImage('svg'); toolbar.querySelector('#export-png').onclick = () => saveImage('png');
   if (item.type === 'mermaid') renderMermaid(area, props, item);
@@ -448,7 +523,7 @@ async function start() {
   try {
     document.addEventListener('keydown', shortcuts);
     document.addEventListener('fullscreenchange', onFullscreenChange);
-    state.db = await openDatabase(); state.projects = await allProjects(state.db);
+    state.db = await openDatabase(); [state.projects, state.templates] = await Promise.all([allProjects(state.db), allTemplates(state.db)]);
     if (!state.projects.length) { const first = createProject(state.lang === 'fa' ? 'پروژهٔ من' : 'My project'); state.projects.push(first); await saveProject(state.db, first); }
     const previous = JSON.parse(localStorage.getItem('as-session') || '{}');
     state.project = state.projects.find(p => p.id === previous.projectId) || state.projects[0];

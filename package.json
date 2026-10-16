@@ -8,8 +8,8 @@
     "build": "node scripts/generate-schema.mjs && vite build && node scripts/precache.js",
     "preview": "vite preview --host 127.0.0.1",
     "test": "vitest run",
-    "test:browser": "node scripts/catalog-smoke.mjs && node scripts/dialogs-smoke.mjs && node scripts/smoke.mjs && node scripts/editor-smoke.mjs && node scripts/sample-smoke.mjs && node scripts/roundtrip-smoke.mjs && node scripts/image-smoke.mjs && node scripts/simulation-smoke.mjs && node scripts/bpmn-rtl-smoke.mjs && node scripts/fullscreen-smoke.mjs",
-    "test:offline": "node scripts/offline-smoke.mjs",
+    "test:browser": "node scripts/catalog-smoke.mjs && node scripts/dialogs-smoke.mjs && node scripts/smoke.mjs && node scripts/editor-smoke.mjs && node scripts/sample-smoke.mjs && node scripts/roundtrip-smoke.mjs && node scripts/image-smoke.mjs && node scripts/simulation-smoke.mjs && node scripts/bpmn-rtl-smoke.mjs && node scripts/fullscreen-smoke.mjs && node scripts/template-inventory-smoke.mjs && node scripts/template-storage-smoke.mjs && node scripts/template-smoke.mjs && node scripts/template-ui-smoke.mjs",
+    "test:offline": "node scripts/offline-smoke.mjs && node scripts/template-offline-smoke.mjs",
     "benchmark": "node scripts/benchmark.mjs",
     "sample": "node scripts/create-sample.mjs"
   },
