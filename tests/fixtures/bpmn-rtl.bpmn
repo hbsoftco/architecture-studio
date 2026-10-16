@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_RTL" targetNamespace="http://architecture.studio/rtl-test">
+  <bpmn:collaboration id="Collaboration_RTL"><bpmn:participant id="Pool_RTL" name="واحد عملیات" processRef="Process_RTL" /></bpmn:collaboration>
+  <bpmn:process id="Process_RTL" isExecutable="false">
+    <bpmn:laneSet id="LaneSet_RTL"><bpmn:lane id="Lane_RTL" name="گروه بررسی"><bpmn:flowNodeRef>Start_RTL</bpmn:flowNodeRef><bpmn:flowNodeRef>Task_RTL</bpmn:flowNodeRef><bpmn:flowNodeRef>Gateway_RTL</bpmn:flowNodeRef><bpmn:flowNodeRef>End_RTL</bpmn:flowNodeRef></bpmn:lane></bpmn:laneSet>
+    <bpmn:startEvent id="Start_RTL" name="شروع ۱۲۳؟"><bpmn:outgoing>Flow_Start</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:task id="Task_RTL" name="بررسی سفارش 123 (API)&#10;و تأیید نهایی&#10;پیگیری وضعیت ارسال و گزارش به مدیر"><bpmn:incoming>Flow_Start</bpmn:incoming><bpmn:outgoing>Flow_Task</bpmn:outgoing></bpmn:task>
+    <bpmn:exclusiveGateway id="Gateway_RTL" name="تأیید شد؟"><bpmn:incoming>Flow_Task</bpmn:incoming><bpmn:outgoing>Flow_End</bpmn:outgoing></bpmn:exclusiveGateway>
+    <bpmn:endEvent id="End_RTL" name="پایان"><bpmn:incoming>Flow_End</bpmn:incoming></bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_Start" name="گام 1: بررسی" sourceRef="Start_RTL" targetRef="Task_RTL" />
+    <bpmn:sequenceFlow id="Flow_Task" name="وضعیت API؟" sourceRef="Task_RTL" targetRef="Gateway_RTL" />
+    <bpmn:sequenceFlow id="Flow_End" name="بله (OK)" sourceRef="Gateway_RTL" targetRef="End_RTL" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_RTL"><bpmndi:BPMNPlane id="Plane_RTL" bpmnElement="Collaboration_RTL">
+    <bpmndi:BPMNShape id="Pool_RTL_di" bpmnElement="Pool_RTL" isHorizontal="true"><dc:Bounds x="60" y="60" width="950" height="250" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="Lane_RTL_di" bpmnElement="Lane_RTL" isHorizontal="true"><dc:Bounds x="90" y="60" width="920" height="250" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="Start_RTL_di" bpmnElement="Start_RTL"><dc:Bounds x="185" y="150" width="36" height="36" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="Task_RTL_di" bpmnElement="Task_RTL"><dc:Bounds x="320" y="125" width="160" height="86" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="Gateway_RTL_di" bpmnElement="Gateway_RTL" isMarkerVisible="true"><dc:Bounds x="615" y="143" width="50" height="50" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="End_RTL_di" bpmnElement="End_RTL"><dc:Bounds x="840" y="150" width="36" height="36" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNEdge id="Flow_Start_di" bpmnElement="Flow_Start"><di:waypoint x="221" y="168" /><di:waypoint x="320" y="168" /><bpmndi:BPMNLabel><dc:Bounds x="230" y="127" width="82" height="24" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="Flow_Task_di" bpmnElement="Flow_Task"><di:waypoint x="480" y="168" /><di:waypoint x="615" y="168" /><bpmndi:BPMNLabel><dc:Bounds x="500" y="127" width="92" height="24" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="Flow_End_di" bpmnElement="Flow_End"><di:waypoint x="665" y="168" /><di:waypoint x="840" y="168" /><bpmndi:BPMNLabel><dc:Bounds x="705" y="127" width="92" height="24" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
+</bpmn:definitions>
