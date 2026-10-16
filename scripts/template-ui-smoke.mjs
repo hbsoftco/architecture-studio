@@ -29,7 +29,20 @@ try {
   await page.locator('#template-category').selectOption('architecture');
   await page.locator('#template-search').fill('');
   assert(await page.locator('.template-card').count() === 3, 'type/category filtering failed');
+  await page.locator('.template-card').last().click();
+  assert(await page.locator('.template-card[aria-selected="true"]').count() === 1, 'multiple templates selected');
+  await page.locator('.template-card').first().focus();
+  await page.keyboard.press('ArrowDown');
+  assert(await page.locator('.template-card').nth(1).evaluate(node => node === document.activeElement), 'arrow key did not move card focus');
+  await page.keyboard.press('Enter');
+  assert(await page.locator('.template-card').nth(1).getAttribute('aria-selected') === 'true', 'Enter did not select focused template');
+  await page.locator('#template-search').fill('no-template-has-this-name');
+  await page.locator('.template-results .template-empty').waitFor();
+  assert(await page.locator('#template-detail .template-empty').isVisible(), 'stale detail after no-results search');
+  assert(await page.locator('.studio-dialog-submit').isDisabled(), 'create enabled without a visible template');
+  await page.locator('#template-search').fill('');
   await page.locator('[data-template-id="c4-context"]').click();
+  assert((await page.locator('#template-detail h3').textContent()).includes('مرز سامانهٔ سفارش'), 'preview metadata did not follow selection');
   await page.locator('#template-folder').selectOption({label:'Templates folder'});
   await page.locator('#template-diagram-name').fill('Folder architecture');
   await page.locator('.catalog-dialog .studio-dialog-submit').click();
@@ -46,7 +59,7 @@ try {
   });
   assert(folder, 'destination folder not saved');
 
-  await page.evaluate(() => { localStorage.setItem('as-lang','en'); localStorage.setItem('as-theme','dark'); });
+  await page.evaluate(() => { localStorage.setItem('as-lang','en'); localStorage.setItem('as-theme','dark'); localStorage.setItem('as-template-gallery','null'); localStorage.setItem('as-template-use','null'); });
   await page.reload();
   await page.locator('#new-document').click();
   await page.locator('#mode-templates').click();
@@ -56,7 +69,9 @@ try {
   await page.locator('#template-source').selectOption('custom');
   await page.locator('.template-results .template-empty').waitFor();
   assert((await page.locator('.template-results .template-empty').textContent()).includes('No saved templates'), 'custom empty state missing');
-  await page.locator('.studio-dialog-close').click();
+  assert(await page.locator('.studio-dialog-submit').isDisabled(), 'create enabled for empty custom results');
+  await page.keyboard.press('Escape');
+  await page.locator('dialog.catalog-dialog').waitFor({state:'detached'});
 
   const mobile = await browser.newContext({ viewport:{width:390,height:800}, isMobile:true, hasTouch:true });
   const mobilePage = await mobile.newPage();

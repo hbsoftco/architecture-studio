@@ -1,6 +1,7 @@
 import { TYPES } from './model.js';
 import { safePath } from './export.js';
 import { validateTemplateContent, validateTemplateMetadata } from './template-core.js';
+import { templateThumbnail } from './template-preview.js';
 
 const PACKAGE_KIND = 'architecture-studio-templates';
 const PACKAGE_VERSION = 1;
@@ -15,6 +16,7 @@ export async function exportTemplates(templates) {
   const manifest = { kind: PACKAGE_KIND, schemaVersion: PACKAGE_VERSION, createdAt: new Date().toISOString(), templates: [] };
   for (const item of templates) {
     validateTemplateContent(item);
+    if (typeof document !== 'undefined' && item.diagramType === 'mermaid') await templateThumbnail(item);
     if (item.source !== 'custom' || ids.has(item.id)) throw new Error('Only distinct custom templates can be exported');
     ids.add(item.id);
     const path = safePath(`templates/${item.id}.${TYPES[item.diagramType].extension}`);
@@ -55,7 +57,9 @@ export async function importTemplates(file) {
     if (!source) throw new Error(`Template source missing: ${entry.id}`);
     const content = await source.async('string');
     const { path, thumbnail, ...metadata } = entry;
-    templates.push(validateTemplateContent({ ...metadata, content }));
+    const template = validateTemplateContent({ ...metadata, content });
+    if (typeof document !== 'undefined' && template.diagramType === 'mermaid') await templateThumbnail(template);
+    templates.push(template);
   }
   const allowed = new Set(['manifest.json', ...paths]);
   if (entries.some(entry => !entry.dir && !allowed.has(entry.name))) throw new Error('Unsupported template package asset');

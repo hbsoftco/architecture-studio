@@ -126,6 +126,7 @@ export function openDiagramCatalog(dialogs, language, onCreate, templateOptions 
       renderList(); renderPreview();
       if (templateOptions.getCustomTemplates) templateGallery = attachTemplateGallery({ content, dialog, submit, language,
         folders: templateOptions.folders || [], getCustomTemplates: templateOptions.getCustomTemplates,
+        unavailableTemplates: templateOptions.unavailableTemplates || 0,
         onCreate: templateOptions.onCreateTemplate, onManage: templateOptions.onManage });
     },
     async onConfirm({ content }) {

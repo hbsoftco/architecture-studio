@@ -14,7 +14,7 @@ import { validateXMLDocument } from './xml-validation.js';
 import fontUrl from 'vazirmatn/fonts/webfonts/Vazirmatn[wght].woff2?url';
 
 const app = document.querySelector('#app');
-const state = { db: null, projects: [], templates: [], project: null, docId: null, tabs: [], editor: null, dirty: false, saveTimer: null, renderTimer: null, lang: localStorage.getItem('as-lang') || 'fa', theme: localStorage.getItem('as-theme') || 'light' };
+const state = { db: null, projects: [], templates: [], unavailableTemplates: 0, project: null, docId: null, tabs: [], editor: null, dirty: false, saveTimer: null, renderTimer: null, lang: localStorage.getItem('as-lang') || 'fa', theme: localStorage.getItem('as-theme') || 'light' };
 let fullscreenFallback = false;
 let fullscreenFocus = null;
 let fullscreenPanelOpen = false;
@@ -223,8 +223,10 @@ async function newDocument() {
   await openDiagramCatalog(dialogs, state.lang, async (entry, name) => addNewDocument(createCatalogDocument(entry, name)), {
     folders: state.project.folders,
     getCustomTemplates: () => state.templates,
+    unavailableTemplates: state.unavailableTemplates,
     onCreateTemplate: async (template, name, folderId) => {
       if (folderId && !state.project.folders.some(folder => folder.id === folderId)) throw new Error(ui('پوشهٔ مقصد پیدا نشد.', 'Destination folder not found.'));
+      if (template.diagramType === 'mermaid') await templateThumbnail({ ...template, thumbnail:undefined });
       await addNewDocument(instantiateTemplate(template, name, folderId));
       try {
         const usage = JSON.parse(localStorage.getItem('as-template-use') || '{}');
@@ -276,7 +278,8 @@ async function manageTemplate(action, payload) {
     state.templates = state.templates.map(item => item.id === payload.id ? payload : item);
   } else if (action === 'duplicate') {
     const now = new Date().toISOString();
-    const copy = { ...structuredClone(payload), id:`user-${uid()}`, title:{ fa:`${payload.title.fa} ${ui('رونوشت','copy')}`, en:`${payload.title.en} copy` }, createdAt:now, updatedAt:now, lastUsedAt:null, usageCount:0 };
+    const copy = { ...structuredClone(payload), id:`user-${uid()}`, title:{ fa:`${payload.title.fa.slice(0, 112)} ${ui('رونوشت','copy')}`, en:`${payload.title.en.slice(0, 114)} copy` }, createdAt:now, updatedAt:now, lastUsedAt:null, usageCount:0 };
+    validateTemplateMetadata(copy);
     await saveTemplate(state.db, copy); state.templates.push(copy);
   } else if (action === 'delete') {
     if (!state.templates.some(item => item.id === payload.id)) throw new Error('Built-in templates cannot be deleted');
@@ -523,7 +526,13 @@ async function start() {
   try {
     document.addEventListener('keydown', shortcuts);
     document.addEventListener('fullscreenchange', onFullscreenChange);
-    state.db = await openDatabase(); [state.projects, state.templates] = await Promise.all([allProjects(state.db), allTemplates(state.db)]);
+    state.db = await openDatabase();
+    const [projects, storedTemplates] = await Promise.all([allProjects(state.db), allTemplates(state.db)]);
+    state.projects = projects;
+    state.templates = storedTemplates.filter(item => {
+      try { validateTemplateMetadata(item); if (item.source !== 'custom') throw new Error('Stored template must be custom'); return true; }
+      catch { state.unavailableTemplates++; return false; }
+    });
     if (!state.projects.length) { const first = createProject(state.lang === 'fa' ? 'پروژهٔ من' : 'My project'); state.projects.push(first); await saveProject(state.db, first); }
     const previous = JSON.parse(localStorage.getItem('as-session') || '{}');
     state.project = state.projects.find(p => p.id === previous.projectId) || state.projects[0];

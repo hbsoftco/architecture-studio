@@ -63,7 +63,10 @@ export function validateTemplateContent(template) {
     if (!/^(?:flowchart|graph|sequenceDiagram|classDiagram|stateDiagram(?:-v2)?|erDiagram|gantt|journey|gitGraph|pie|timeline|mindmap|quadrantChart|requirementDiagram|architecture-beta|C4\w+)\b/.test(declaration)) throw new Error('Unsupported Mermaid source');
   } else {
     const model = validateGraph(JSON.parse(content));
-    for (const node of model.nodes) if (typeof node.label !== 'string' || !Number.isFinite(node.w) || !Number.isFinite(node.h) || node.w <= 0 || node.h <= 0) throw new Error('Invalid graph node');
+    if (model.nodes.length > 2000 || model.edges.length > 5000) throw new Error('Template graph is too large');
+    for (const node of model.nodes) if (typeof node.label !== 'string' || node.label.length > 2000 ||
+      Math.abs(node.x) > 100000 || Math.abs(node.y) > 100000 ||
+      !Number.isFinite(node.w) || !Number.isFinite(node.h) || node.w <= 0 || node.h <= 0 || node.w > 10000 || node.h > 10000) throw new Error('Invalid graph node');
   }
   return template;
 }

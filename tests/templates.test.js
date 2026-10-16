@@ -52,6 +52,10 @@ describe('template registry', () => {
     expect(() => validateTemplateMetadata({ ...example, diagramType:'unknown' })).toThrow();
     expect(() => validateTemplateContent({ ...example, content:'<!DOCTYPE foo><definitions><process/></definitions>' })).toThrow(/Unsafe/);
     expect(() => validateTemplateContent({ ...builtInTemplates.find(item => item.diagramType === 'mermaid'), content:'%%{init: {securityLevel:"loose"}}%%\nflowchart LR\nA-->B' })).toThrow(/Unsafe/);
+    const graph = builtInTemplates.find(item => item.id === 'erd-users-roles');
+    const extreme = JSON.parse(graph.content);
+    extreme.nodes[0].x = 1e308;
+    expect(() => validateTemplateContent({ ...graph, content:JSON.stringify(extreme) })).toThrow(/Invalid graph node/);
   });
 });
 

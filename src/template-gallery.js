@@ -11,9 +11,9 @@ const words = {
   en: { templates:'Templates', blank:'Blank Diagram', search:'Search templates', all:'All templates', builtin:'Built-in', mine:'My templates', allTypes:'All types', allCategories:'All categories', recommended:'Recommended', name:'Name', recent:'Recently used', created:'Recently created', source:'Source', builtInSource:'Built-in template', mySource:'My template', create:'Create from template', nameLabel:'New diagram name', folder:'Destination folder', root:'Project root', preview:'Actual preview', details:'How to use', guide:'Diagram guide', next:'Next', previous:'Previous', back:'Back to template', noResults:'No templates found. Change the search or filters.', noMine:'No saved templates yet. Open a diagram and choose “Save as Template”.', more:'Show more templates', edit:'Edit template', duplicate:'Duplicate', remove:'Delete', export:'Export', exportAll:'Export all', import:'Import templates', title:'Template name', description:'Short description', tags:'Comma-separated tags', category:'Category', save:'Save changes', cancel:'Cancel', confirmDelete:'Click again to delete this template', confirm:'Delete permanently', conflict:'Template IDs already exist', copy:'Import as copies', skip:'Skip duplicates', replace:'Replace my templates', importing:'Import templates', importConfirm:'Import', fit:'Fit view', zoomIn:'Zoom in', zoomOut:'Zoom out', error:'The operation failed' }
 };
 
-export function attachTemplateGallery({ content, dialog, submit, language, folders, getCustomTemplates, onCreate, onManage }) {
+export function attachTemplateGallery({ content, dialog, submit, language, folders, getCustomTemplates, unavailableTemplates = 0, onCreate, onManage }) {
   const w = words[language];
-  const prefs = (() => { try { return JSON.parse(localStorage.getItem('as-template-gallery') || '{}'); } catch { return {}; } })();
+  const prefs = (() => { try { const value = JSON.parse(localStorage.getItem('as-template-gallery') || '{}'); return value && typeof value === 'object' && !Array.isArray(value) ? value : {}; } catch { return {}; } })();
   let mode = 'blank';
   let selectedId = builtInTemplates[0].id;
   let autoName = '';
@@ -41,7 +41,7 @@ export function attachTemplateGallery({ content, dialog, submit, language, folde
   const message = (value, error = false) => { const node = $('#template-message'); node.hidden = !value; node.textContent = value || ''; node.classList.toggle('error', error); };
   const templates = () => {
     let usage = {};
-    try { usage = JSON.parse(localStorage.getItem('as-template-use') || '{}'); } catch { /* Ignore malformed preferences. */ }
+    try { const value = JSON.parse(localStorage.getItem('as-template-use') || '{}'); usage = value && typeof value === 'object' && !Array.isArray(value) ? value : {}; } catch { /* Ignore malformed preferences. */ }
     return [...builtInTemplates, ...getCustomTemplates()].map(item => usage[item.id] && !item.lastUsedAt ? { ...item, lastUsedAt:usage[item.id] } : item);
   };
   const selected = () => templates().find(template => template.id === selectedId);
@@ -59,7 +59,13 @@ export function attachTemplateGallery({ content, dialog, submit, language, folde
       ? (language === 'fa' ? 'یک قالب واقعی را بررسی کنید و نمودار تازهٔ خود را از آن بسازید.' : 'Inspect a real template, then create a new diagram from it.')
       : (language === 'fa' ? 'نوع نمودار را انتخاب کنید، نمونه را ببینید و سپس آن را بسازید.' : 'Choose a diagram type, inspect its example, then create it.');
     submit.textContent = next === 'templates' ? w.create : (language === 'fa' ? 'ایجاد نمودار' : 'Create diagram');
-    if (next === 'templates') { renderList(); renderDetail(); search.focus(); }
+    if (next === 'templates') {
+      renderList(); renderDetail();
+      if (unavailableTemplates) message(language === 'fa'
+        ? `${unavailableTemplates} قالب ذخیره‌شده به‌دلیل دادهٔ نامعتبر نمایش داده نشد. سایر قالب‌ها همچنان در دسترس‌اند.`
+        : `${unavailableTemplates} saved template could not be shown because its data is invalid. Other templates remain available.`, true);
+      search.focus();
+    }
     else { submit.disabled = !content.querySelector('#catalog-results [data-catalog-id]'); message(''); content.querySelector('#catalog-search').focus(); }
   }
   tabs.querySelector('#mode-blank').onclick = () => setMode('blank');
@@ -72,7 +78,7 @@ export function attachTemplateGallery({ content, dialog, submit, language, folde
     const selectedIndex = matches.findIndex(item => item.id === selectedId);
     if (selectedIndex >= visibleCount) visibleCount = Math.ceil((selectedIndex + 1) / 40) * 40;
     const results = $('#template-results');
-    results.innerHTML = matches.length ? matches.slice(0, visibleCount).map(item => `<button type="button" class="template-card ${item.id === selectedId ? 'selected' : ''}" data-template-id="${esc(item.id)}" role="option" aria-selected="${item.id === selectedId}"><span class="template-card-art" data-thumb="${esc(item.id)}" aria-hidden="true"><span class="template-card-loading">${esc(TYPES[item.diagramType][language])}</span></span><span class="template-card-copy"><strong>${esc(item.title[language])}</strong><small>${esc(item.description[language])}</small><span class="template-card-meta"><span>${esc(TYPES[item.diagramType].en)}</span><span>${item.source === 'builtin' ? w.builtin : w.mine}</span></span></span></button>`).join('') + (matches.length > visibleCount ? `<button id="template-more" class="btn btn-ghost" type="button">${w.more} (${matches.length - visibleCount})</button>` : '') : `<p class="template-empty">${source.value === 'custom' && !getCustomTemplates().length ? w.noMine : w.noResults}</p>`;
+    results.innerHTML = matches.length ? matches.slice(0, visibleCount).map(item => `<button type="button" class="template-card ${item.id === selectedId ? 'selected' : ''}" data-template-id="${esc(item.id)}" role="option" aria-selected="${item.id === selectedId}"><span class="template-card-art" data-thumb="${esc(item.id)}" aria-hidden="true"><span class="template-card-loading">${esc(TYPES[item.diagramType][language])}</span></span><span class="template-card-copy"><strong>${esc(item.title[language])}</strong><small>${esc(item.description[language])}</small><span class="template-card-meta"><span dir="auto">${esc(TYPES[item.diagramType].en)} · ${esc(TEMPLATE_CATEGORIES[item.category][language])}</span><span>${item.source === 'builtin' ? w.builtin : w.mine}</span></span></span></button>`).join('') + (matches.length > visibleCount ? `<button id="template-more" class="btn btn-ghost" type="button">${w.more} (${matches.length - visibleCount})</button>` : '') : `<p class="template-empty">${source.value === 'custom' && !getCustomTemplates().length ? w.noMine : w.noResults}</p>`;
     results.querySelector('#template-more')?.addEventListener('click', () => { const top = results.scrollTop; visibleCount += 40; renderList(); results.scrollTop = top; });
     results.querySelectorAll('[data-template-id]').forEach(button => button.onclick = () => {
       selectedId = button.dataset.templateId; editOpen = false; pendingDelete = false; guideStep = -1; zoom = 1;
@@ -86,13 +92,13 @@ export function attachTemplateGallery({ content, dialog, submit, language, folde
         for (const entry of entries) if (entry.isIntersecting) {
           observer.unobserve(entry.target);
           const item = templates().find(candidate => candidate.id === entry.target.dataset.thumb);
-          if (item) showTemplateThumbnail(item, entry.target);
+          if (item) showTemplateThumbnail(item, entry.target, language);
         }
       }, { root:results, rootMargin:'100px' });
       results.querySelectorAll('[data-thumb]').forEach(node => observer.observe(node));
     } else results.querySelectorAll('[data-thumb]').forEach(node => {
       const item = templates().find(candidate => candidate.id === node.dataset.thumb);
-      if (item) showTemplateThumbnail(item, node);
+      if (item) showTemplateThumbnail(item, node, language);
     });
     submit.disabled = !selectedId;
     $('#template-export-all').disabled = getCustomTemplates().length === 0;
@@ -135,7 +141,7 @@ export function attachTemplateGallery({ content, dialog, submit, language, folde
     }
     detail.innerHTML = `<div class="template-detail-header"><p class="template-eyebrow">${esc(TEMPLATE_CATEGORIES[item.category][language])} · ${esc(TYPES[item.diagramType].en)}</p><h3>${esc(item.title[language])}</h3><p>${esc(item.description[language])}</p></div><div class="template-detail-art"><div id="template-full-preview" dir="ltr" role="img" aria-label="${esc(w.preview)}"></div></div><div class="template-zoom"><button id="template-zoom-out" class="btn btn-xs btn-ghost" type="button" aria-label="${w.zoomOut}">−</button><button id="template-fit" class="btn btn-xs btn-ghost" type="button">${w.fit}</button><button id="template-zoom-in" class="btn btn-xs btn-ghost" type="button" aria-label="${w.zoomIn}">＋</button></div><p class="template-detail-description"><strong>${w.details}</strong> ${esc(item.details[language])}</p><div class="template-tags">${item.tags.map(tag => `<span dir="auto">${esc(tag)}</span>`).join('')}</div><p class="template-source">${w.source}: ${item.source === 'builtin' ? w.builtInSource : w.mySource} · ${esc(item.sourceFormat.toUpperCase())} · v${item.version}</p><div class="template-detail-actions">${item.guideId ? `<button id="template-guide" class="btn btn-ghost btn-sm" type="button">ⓘ ${w.guide}</button>` : ''}${item.source === 'custom' ? `<button id="template-edit" class="btn btn-ghost btn-sm" type="button">${w.edit}</button><button id="template-duplicate" class="btn btn-ghost btn-sm" type="button">${w.duplicate}</button><button id="template-export" class="btn btn-ghost btn-sm" type="button">${w.export}</button><button id="template-delete" class="btn btn-error btn-soft btn-sm" type="button">${pendingDelete ? w.confirm : w.remove}</button>` : ''}</div>${pendingDelete ? `<p class="template-delete-warning">${w.confirmDelete} <button id="template-delete-cancel" class="btn btn-ghost btn-xs" type="button">${w.cancel}</button></p>` : ''}`;
     const previewHost = detail.querySelector('#template-full-preview');
-    showTemplateThumbnail(item, previewHost).then(() => { if (previewHost.isConnected) previewHost.style.zoom = String(zoom); });
+    showTemplateThumbnail(item, previewHost, language).then(() => { if (previewHost.isConnected) previewHost.style.zoom = String(zoom); });
     detail.querySelector('#template-zoom-in').onclick = () => { zoom = Math.min(2, zoom * 1.2); previewHost.style.zoom = String(zoom); };
     detail.querySelector('#template-zoom-out').onclick = () => { zoom = Math.max(.5, zoom / 1.2); previewHost.style.zoom = String(zoom); };
     detail.querySelector('#template-fit').onclick = () => { zoom = 1; previewHost.style.zoom = '1'; };
